@@ -12,7 +12,10 @@ const categoryRoutes = require('./routes/categories');
 const app = express();
 
 // Middlewares (les "assistants" de notre serveur)
-app.use(cors()); // Autorise les requêtes depuis d'autres origines (notre frontend)
+// Par cette nouvelle configuration :
+app.use(cors({
+  origin: 'https://bnwers-app.netlify.app'
+})); // Autorise les requêtes depuis d'autres origines (notre frontend)
 app.use(express.json()); // Permet de comprendre le JSON envoyé par le frontend
 
 // Définir les routes de base de notre API
