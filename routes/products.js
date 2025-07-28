@@ -1,4 +1,4 @@
-// Fichier: backend BNWERS/routes/products.js
+// Fichier: backend/routes/products.js (Version Corrigée)
 
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
@@ -8,7 +8,6 @@ const router = express.Router();
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
-// Configuration de Multer pour gérer les fichiers en mémoire
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
@@ -33,14 +32,14 @@ async function uploadImages(files) {
     return imageUrls;
 }
 
-// GET tous les produits (public)
+// GET tous les produits (public) - Pas de changement ici
 router.get('/', async (req, res) => {
     const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
     if (error) return res.status(500).json({ error: error.message });
     res.json(data);
 });
 
-// GET un seul produit par ID (public)
+// GET un seul produit par ID (public) - Pas de changement ici
 router.get('/:id', async (req, res) => {
     const { id } = req.params;
     const { data, error } = await supabase.from('products').select('*').eq('id', id).single();
@@ -48,22 +47,29 @@ router.get('/:id', async (req, res) => {
     res.json(data);
 });
 
-// POST un nouveau produit (protégé)
+// POST un nouveau produit (protégé) - CORRIGÉ
 router.post('/', authMiddleware, upload.array('images', 5), async (req, res) => {
     try {
         const { name, price, category, description, colors } = req.body;
+        
+        // CORRECTION : On gère les cas où les champs sont vides ou nuls
+        const categoryValue = category ? category.toLowerCase() : null;
+        const colorsArray = colors ? colors.split(',').map(c => c.trim()).filter(Boolean) : [];
         const imageUrls = await uploadImages(req.files);
 
         const { data, error } = await supabase.from('products').insert([{
             name,
             price: parseFloat(price),
-            category: category ? category.toLowerCase() : null,
+            category: categoryValue,      // Utilise la valeur sécurisée
             description,
-            colors: colors ? colors.split(',').map(c => c.trim()).filter(Boolean) : [],
+            colors: colorsArray,          // Utilise la valeur sécurisée
             images: imageUrls
         }]).select();
 
-        if (error) throw error;
+        if (error) {
+            console.error("Erreur Supabase (POST):", error);
+            throw error;
+        }
         res.status(201).json(data[0]);
 
     } catch (error) {
@@ -71,10 +77,9 @@ router.post('/', authMiddleware, upload.array('images', 5), async (req, res) => 
     }
 });
 
-// DELETE un produit (protégé)
+// DELETE un produit (protégé) - Pas de changement ici
 router.delete('/:id', authMiddleware, async (req, res) => {
     const { id } = req.params;
-    
     const { data: product, error: findError } = await supabase.from('products').select('images').eq('id', id).single();
     if (findError) return res.status(404).json({ message: "Produit non trouvé" });
 
@@ -85,11 +90,10 @@ router.delete('/:id', authMiddleware, async (req, res) => {
         const fileNames = product.images.map(url => url.split('/').pop());
         await supabase.storage.from('product-images').remove(fileNames);
     }
-
     res.json({ message: 'Produit supprimé avec succès' });
 });
 
-// PUT (modifier) un produit (protégé)
+// PUT (modifier) un produit (protégé) - CORRIGÉ
 router.put('/:id', authMiddleware, upload.array('images', 5), async (req, res) => {
     try {
         const { id } = req.params;
@@ -98,22 +102,27 @@ router.put('/:id', authMiddleware, upload.array('images', 5), async (req, res) =
         const { data: existingProduct, error: findError } = await supabase.from('products').select('images').eq('id', id).single();
         if (findError) return res.status(404).json({ message: "Produit non trouvé" });
 
+        // CORRECTION : On gère les cas où les champs sont vides ou nuls
+        const categoryValue = category ? category.toLowerCase() : null;
+        const colorsArray = colors ? colors.split(',').map(c => c.trim()).filter(Boolean) : [];
         let imageUrls = existingProduct.images || [];
         if (req.files && req.files.length > 0) {
-            const newImageUrls = await uploadImages(req.files);
-            imageUrls = newImageUrls; // On remplace les anciennes images
+            imageUrls = await uploadImages(req.files);
         }
 
         const { data, error } = await supabase.from('products').update({
             name,
             price: parseFloat(price),
-            category: category ? category.toLowerCase() : null,
+            category: categoryValue,      // Utilise la valeur sécurisée
             description,
-            colors: colors ? colors.split(',').map(c => c.trim()).filter(Boolean) : [],
+            colors: colorsArray,          // Utilise la valeur sécurisée
             images: imageUrls
         }).eq('id', id).select();
 
-        if (error) throw error;
+        if (error) {
+            console.error("Erreur Supabase (PUT):", error);
+            throw error;
+        }
         res.json(data[0]);
 
     } catch (error) {
